@@ -1,40 +1,35 @@
-from fastapi import FastAPI, UploadFile, File
-from prophet import Prophet
+from fastapi import APIRouter, HTTPException
 import pandas as pd
-import io
-import json
+from pydantic import BaseModel
+from models import XGBoostModel
+from data import DataUtils
+from core.config import DATA_PATH, FEATURE_LIST
+import logging
 
-app = FastAPI()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-@app.post("/forecast")
-async def create_forecast(file: UploadFile = File(...), forecast_days: int = 30):
-    content = await file.read()
-    data = pd.read_csv(io.StringIO(content.decode('utf-8')))
-    
-    # Prepare data for Prophet
-    df = data[['date', 'sales']].rename(columns={'date': 'ds', 'sales': 'y'})
-    df['ds'] = pd.to_datetime(df['ds'])
-    
-    # Create and fit the model
-    model = Prophet(yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=False)
-    model.fit(df)
-    
-    # Create future dataframe for predictions
-    future = model.make_future_dataframe(periods=forecast_days)
-    
-    # Make predictions
-    forecast = model.predict(future)
-    
-    # Prepare the response
-    forecast_data = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].to_dict(orient='records')
-    components = model.plot_components(forecast)
-    components_data = {
-        'trend': components.gca().lines[0].get_xydata().tolist(),
-        'yearly': components.gca().lines[1].get_xydata().tolist(),
-        'weekly': components.gca().lines[2].get_xydata().tolist()
-    }
-    
-    return {
-        "forecast": forecast_data,
-        "components": components_data
-    }
+router = APIRouter()
+class Data(BaseModel):
+    store_id: int
+    forecast_horizon: int = 7
+
+model = XGBoostModel()
+df = DataUtils.load_data(DATA_PATH)
+
+@router.post("/forecast")
+async def create_forecast(store_id, forecast_days: int = 14):
+    try:
+        if model is None:
+            raise HTTPException(status_code=500, detail="Modell konnte nicht geladen werden")
+        
+        X_train, y_train, X_test, y_test, train_dates, test_dates = DataUtils.create_holdout_set(df, store_id=store_id, feature_list=FEATURE_LIST, anzahl_wochen=6, get_dates=True)
+        forecast = model.get_predictions_for_store(input_data=X_test, store_id=store_id, future_steps=forecast_days)
+
+        return {
+            "forecast": forecast,
+            "dates": test_dates
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Ausführen der Vorhersagen: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Fehler beim Ausführen der Vorhersagen: {str(e)}")
