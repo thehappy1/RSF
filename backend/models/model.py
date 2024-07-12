@@ -10,8 +10,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.config import MODEL_PATH  
 
 class XGBoostModel():
-    def __init__(self, model_path="xgboost_final.json"):
-        self.xgb_model = self.load_xgb_model(MODEL_PATH)
+    def __init__(self, model_path="/app/models/xgboost_final.json"):
+        self.xgb_model = self.load_xgb_model(model_path)
 
     def load_xgb_model(self, MODEL_PATH):
         '''
@@ -22,7 +22,7 @@ class XGBoostModel():
             xgb_model.load_model(MODEL_PATH)
             print("Model erfolgreich geladen")
         except Exception as e:
-            print('Model Loading fehlgeschlagen!')
+            print('Model Loading fehlgeschlagen! Fehler', e)
             xgb_model = xgb.Booster()
 
         return xgb_model

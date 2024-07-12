@@ -1,77 +1,78 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objs as go
+import plotly.express as px
 import requests
 import io
+
+import pygwalker as pyg
+from pygwalker.api.streamlit import StreamlitRenderer
 
 # Set page config
 st.set_page_config(page_title="Store Sales Demand Forecast", layout="wide")
 
 # Title
-st.title("Store Sales Demand Forecasting")
+st.header("Rossmann Store Sales Demand Forecasting", divider='rainbow')
 
 # Sidebar
-st.sidebar.header("Upload Data")
-uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
 
-if uploaded_file is not None:
-    # Read the CSV file
-    data = pd.read_csv(uploaded_file)
-    
-    # Display the raw data
-    st.subheader("Raw Data")
-    st.write(data.head())
-    
-    # Create future dataframe for predictions
-    future_period = st.sidebar.slider("Forecast period (days)", min_value=1, max_value=365, value=30)
-    
-    # Make API request to backend
-    files = {'file': uploaded_file.getvalue()}
-    response = requests.post("http://backend:8000/forecast", files=files, data={'forecast_days': future_period})
+# Filiale auswählen
+store_list = np.arange(1,1116, dtype=int)
+option_1 = st.sidebar.selectbox(
+   "Bitte Filial-ID auswählen",
+   (store_list),
+   index=None,
+   placeholder="Filiale auswählen...",
+)
+
+# Vorhersagelänge auswählen
+length_list = np.arange(1,30, dtype=int)
+option_2 = st.sidebar.selectbox(
+   "Bitte Vorhersagelänge auswählen",
+   (length_list),
+   index=None,
+   placeholder="Filiale auswählen...",
+)
+
+if st.sidebar.button("Berechne Vorhersage"):
+    st.header(f'Dashboard für Filiale {option_1}')
+
+    store_id = int(option_1)
+    forecast_days = int(option_2)
+
+    try:
+        response = requests.post(
+            "http://localhost:80/forecast",
+            json={"store_id": store_id, "forecast_days": forecast_days}
+        )
+
+    except Exception as e:
+        print(f'Anfordern der Vorhersage fehlgeschlagen. Fehler {e}')
+
     forecast_data = response.json()
-    
-    # Plot the forecast
-    st.subheader("Sales Forecast")
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data['date'], y=data['sales'], mode='lines', name='Historical Data'))
-    fig.add_trace(go.Scatter(x=[d['ds'] for d in forecast_data['forecast']], 
-                             y=[d['yhat'] for d in forecast_data['forecast']], 
-                             mode='lines', name='Forecast'))
-    fig.add_trace(go.Scatter(x=[d['ds'] for d in forecast_data['forecast']], 
-                             y=[d['yhat_upper'] for d in forecast_data['forecast']], 
-                             fill=None, mode='lines', line_color='rgba(0,100,80,0.2)', name='Upper Bound'))
-    fig.add_trace(go.Scatter(x=[d['ds'] for d in forecast_data['forecast']], 
-                             y=[d['yhat_lower'] for d in forecast_data['forecast']], 
-                             fill='tonexty', mode='lines', line_color='rgba(0,100,80,0.2)', name='Lower Bound'))
-    st.plotly_chart(fig)
-    
-    # Display forecast components
-    st.subheader("Forecast Components")
-    components_fig = go.Figure()
-    components_fig.add_trace(go.Scatter(x=[p[0] for p in forecast_data['components']['trend']], 
-                                        y=[p[1] for p in forecast_data['components']['trend']], 
-                                        mode='lines', name='Trend'))
-    components_fig.add_trace(go.Scatter(x=[p[0] for p in forecast_data['components']['yearly']], 
-                                        y=[p[1] for p in forecast_data['components']['yearly']], 
-                                        mode='lines', name='Yearly'))
-    components_fig.add_trace(go.Scatter(x=[p[0] for p in forecast_data['components']['weekly']], 
-                                        y=[p[1] for p in forecast_data['components']['weekly']], 
-                                        mode='lines', name='Weekly'))
-    st.plotly_chart(components_fig)
-    
-    # Show forecast data
-    st.subheader("Forecast Data")
-    st.write(pd.DataFrame(forecast_data['forecast']).tail())
 
-else:
-    st.write("Please upload a CSV file to begin forecasting.")
+    forecast_df = pd.DataFrame({
+            "date": forecast_data['dates'],
+            "forecast": forecast_data['forecast']
+        })
+        
+    
+    fig = px.line(forecast_df, x="date", y="forecast", color_discrete_sequence=["#0514C0"], labels={'y': 'Vorhersage'})
+    #fig.add_scatter(x=prediction['ds'], y=prediction['y'], mode='lines', name='Prediction', line=dict(color='#4CC005'))
+
+    fig.update_layout(title='Vorhersage der Verkaufszahlen', xaxis_title='Datum', yaxis_title='Verkaufszahlen in €')
+
+    st.plotly_chart(fig, use_container_width=True)
+    
+
+st.sidebar.header("File Upload")
+uploaded_file = st.sidebar.file_uploader("CSV einer eigenen Filiale hochladen...", type="csv")
 
 # Instructions
 st.sidebar.markdown("""
-## Instructions
-1. Upload a CSV file containing sales data.
-2. The CSV should have 'date' and 'sales' columns.
-3. Adjust the forecast period using the slider.
-4. View the forecast plot and components.
+## Vorgehensweise
+1. Filial-ID auswählen.
+2. Auf "Berechne Vorhersage" klicken.
 """)
     

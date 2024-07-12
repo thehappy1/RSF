@@ -25,7 +25,7 @@ class DataUtils():
             df = df.sort_values(by='Date')
             print('Daten erfolgreich geladen')
         except Exception as e:
-            print('Data Loading fehlgeschlagen!')
+            print('Data Loading fehlgeschlagen! Fehler:', e)
             df = pd.DataFrame()  # Return an empty DataFrame in case of failure
             
         return df
