@@ -31,19 +31,22 @@ async def create_forecast(data: Data):
         if model is None or df is None:
             raise HTTPException(status_code=500, detail="Modell oder Daten konnten nicht geladen werden")
 
-        X_train, y_train, X_test, y_test, train_dates, test_dates = DataUtils.create_holdout_set(
-            df, store_id=data.store_id, feature_list=FEATURE_LIST, anzahl_wochen=data.forecast_weeks, get_dates=True
+        X_train, y_train, train, X_test, y_test, test = DataUtils.create_holdout_set(
+            df, store_id=data.store_id, feature_list=FEATURE_LIST, anzahl_wochen=data.forecast_weeks, get_full_data=True
         )
 
         forecast = model.get_predictions_for_store(
             input_data=X_test, store_id=data.store_id, future_steps=data.forecast_weeks
         )
 
+        train_json = train.to_json(orient="records")
+        test_json = test.to_json(orient="records")
+        
         return {
             "forecast": forecast.tolist() if hasattr(forecast, 'tolist') else forecast,
-            "dates": test_dates.tolist() if hasattr(test_dates, 'tolist') else test_dates,
-            "current_data": X_train.tolist() if hasattr(X_train, 'tolist') else X_train,
-            "current_sales": y_train.tolist() if hasattr(y_train, 'tolist') else y_test
+            "dates": test['Date'].tolist() if hasattr(test, 'tolist') else list(test['Date']),
+            "test": test_json,
+            "train": train_json
         }
     
     except Exception as e:

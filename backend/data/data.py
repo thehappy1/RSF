@@ -31,7 +31,7 @@ class DataUtils():
         return df
 
     
-    def create_holdout_set(dataframe, store_id, feature_list, anzahl_wochen, get_dates=False):
+    def create_holdout_set(dataframe, store_id, feature_list, anzahl_wochen, get_full_data=False):
         """
         Create a holdout set for model training and testing.
 
@@ -64,17 +64,13 @@ class DataUtils():
 
         train = pd.concat(train_list)
         test = pd.concat(test_list)
-        
-        if get_dates: 
-            train_dates = train.Date
-            test_dates = test.Date 
 
         y_train = np.log1p(train['Sales'])
         X_train = train
         y_test = np.log1p(test['Sales'])  
         X_test = test.drop(columns=['Sales', 'Open', 'Date'])
 
-        if get_dates:
-            return X_train, y_train, X_test, y_test, train_dates, test_dates
+        if get_full_data:
+            return X_train, y_train, train, X_test, y_test, test
         else:
             return X_train, y_train, X_test, y_test

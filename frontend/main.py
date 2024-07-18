@@ -36,7 +36,7 @@ option_2 = st.sidebar.selectbox(
 )
 
 if st.sidebar.button("Berechne Vorhersage"):
-    st.header(f'Dashboard für Filiale {option_1}')
+    st.title(f'Dashboard für Filiale {option_1}')
 
     store_id = int(option_1)
     forecast_days = int(option_2)
@@ -50,21 +50,30 @@ if st.sidebar.button("Berechne Vorhersage"):
     except Exception as e:
         print(f'Anfordern der Vorhersage fehlgeschlagen. Fehler {e}')
 
-    forecast_data = response.json()
+    response_data = response.json()
 
     forecast_df = pd.DataFrame({
-            "date": forecast_data['dates'],
-            "forecast": forecast_data['forecast']
+            "date": response_data['dates'],
+            "forecast": response_data['forecast']
         })
-        
     
-    fig = px.line(forecast_df, x="date", y="forecast", color_discrete_sequence=["#0514C0"], labels={'y': 'Vorhersage'})
-    #fig.add_scatter(x=prediction['ds'], y=prediction['y'], mode='lines', name='Prediction', line=dict(color='#4CC005'))
+    train_df = pd.read_json(response_data['train'], orient="records")
+    test_df = pd.read_json(response_data['test'], orient="records")
 
+    st.header("Key Performance Indicators 🚀")
+
+
+    st.dataframe(train_df)
+
+    fig = px.line(train_df, x="Date", y="Sales", color_discrete_sequence=["blue"], labels={'y': 'Verkaufszahlen'})
+    fig.add_scatter(x=forecast_df['date'], y=forecast_df['forecast'], mode='lines', name='Vorhersage', line=dict(color='#41837E'))
+    fig.add_scatter(x=test_df['Date'], y=test_df['Sales'], mode='lines', name='Echte Verkaufszahlen', line=dict(color='#236863'))
     fig.update_layout(title='Vorhersage der Verkaufszahlen', xaxis_title='Datum', yaxis_title='Verkaufszahlen in €')
 
     st.plotly_chart(fig, use_container_width=True)
-    
+
+    if st.button("Berechne Fehlermetrik"):
+        st.text("Purrfect!")
 
 st.sidebar.header("File Upload")
 uploaded_file = st.sidebar.file_uploader("CSV einer eigenen Filiale hochladen...", type="csv")
